@@ -2,7 +2,6 @@ package com.volume_control;
 
 import com.google.gson.Gson;
 import com.google.gson.reflect.TypeToken;
-import com.google.inject.Inject;
 
 import java.lang.reflect.Type;
 import java.util.ArrayList;
@@ -10,15 +9,13 @@ import java.util.List;
 
 public class SoundConfigSerializer {
 
-    @Inject
-    private static final Gson gson = new Gson();
     private static final Type SOUND_CONFIG_TYPE = new TypeToken<List<SoundConfig>>() {
     }.getType();
 
     private SoundConfigSerializer() {
     }
 
-    public static List<SoundConfig> deserialize(String json) {
+    public static List<SoundConfig> deserialize(Gson gson, String json) {
         try {
             if (json == null || json.isEmpty()) {
                 return new ArrayList<>();
@@ -29,7 +26,7 @@ public class SoundConfigSerializer {
         }
     }
 
-    public static String serialize(List<SoundConfig> configs) {
+    public static String serialize(Gson gson, List<SoundConfig> configs) {
         return gson.toJson(configs, SOUND_CONFIG_TYPE);
     }
 }

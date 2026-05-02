@@ -1,6 +1,8 @@
 package com.volume_control;
 
+import com.google.gson.Gson;
 import com.google.inject.Provides;
+import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import net.runelite.api.Client;
 import net.runelite.api.events.SoundEffectPlayed;
@@ -14,6 +16,7 @@ import net.runelite.client.util.ImageUtil;
 
 import javax.inject.Inject;
 import java.awt.image.BufferedImage;
+import java.util.Collections;
 import java.util.List;
 
 @Slf4j
@@ -23,6 +26,7 @@ import java.util.List;
         tags = {"volume", "sound", "effect", "sfx"}
 )
 public class VolumeControl extends Plugin {
+
     @Inject
     private Client client;
 
@@ -35,7 +39,13 @@ public class VolumeControl extends Plugin {
     @Inject
     private VolumeControlConfig config;
 
+    @Inject
+    private Gson gson;
+
     private NavigationButton navButton;
+
+    @Setter
+    private List<SoundConfig> soundConfigs = Collections.emptyList();
 
     @Provides
     VolumeControlConfig provideConfig(ConfigManager configManager) {
@@ -44,7 +54,7 @@ public class VolumeControl extends Plugin {
 
     @Override
     protected void startUp() throws Exception {
-        final SoundConfigPanel panel = new SoundConfigPanel(client, this, config, configManager);
+        final SoundConfigPanel panel = new SoundConfigPanel(client, this, config, configManager, gson);
         final BufferedImage icon = ImageUtil.loadImageResource(getClass(), "/ico.png");
         navButton = NavigationButton.builder()
                 .tooltip("Volume Control")
@@ -54,6 +64,7 @@ public class VolumeControl extends Plugin {
                 .build();
         clientToolbar.addNavigation(navButton);
         panel.startPanel();
+        this.soundConfigs = SoundConfigSerializer.deserialize(this.gson, config.getSoundConfigsJson());
     }
 
     @Override
@@ -63,7 +74,6 @@ public class VolumeControl extends Plugin {
 
     @Subscribe
     public void onSoundEffectPlayed(SoundEffectPlayed soundEffectPlayed) {
-        final List<SoundConfig> soundConfigs = SoundConfigSerializer.deserialize(config.getSoundConfigsJson());
         if (soundConfigs == null || soundConfigs.isEmpty()) {
             return;
         }

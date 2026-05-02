@@ -1,8 +1,8 @@
 package com.volume_control;
 
+import com.google.gson.Gson;
 import net.runelite.api.Client;
 import net.runelite.client.config.ConfigManager;
-import net.runelite.client.plugins.Plugin;
 import net.runelite.client.ui.PluginPanel;
 
 import javax.swing.*;
@@ -12,8 +12,10 @@ import java.util.List;
 
 public class SoundConfigPanel extends PluginPanel {
 
+    private final VolumeControl plugin;
     private final VolumeControlConfig config;
     private final ConfigManager configManager;
+    private final Gson gson;
 
     private JTextField nameField;
     private JTextField soundIdField;
@@ -25,9 +27,11 @@ public class SoundConfigPanel extends PluginPanel {
 
     private final int defaultVolume = 10;
 
-    public SoundConfigPanel(Client client, Plugin plugin, VolumeControlConfig config, ConfigManager configManager) {
+    public SoundConfigPanel(Client client, VolumeControl plugin, VolumeControlConfig config, ConfigManager configManager, Gson gson) {
+        this.plugin = plugin;
         this.config = config;
         this.configManager = configManager;
+        this.gson = gson;
     }
 
     public void startPanel() {
@@ -270,7 +274,7 @@ public class SoundConfigPanel extends PluginPanel {
     }
 
     private List<SoundConfig> getSoundConfigs() {
-        return SoundConfigSerializer.deserialize(config.getSoundConfigsJson());
+        return SoundConfigSerializer.deserialize(this.gson, config.getSoundConfigsJson());
     }
 
     private void setSoundConfigs(List<SoundConfig> soundConfigs) {
@@ -280,16 +284,15 @@ public class SoundConfigPanel extends PluginPanel {
 
         if (soundConfigs != null) {
             for (SoundConfig cfg : soundConfigs) {
-                int id = cfg.getSoundId();
-                if (!seenIds.contains(id)) {
-                    seenIds.add(id);
+                if (seenIds.add(cfg.getSoundId())) {
                     deduplicated.add(cfg);
                 }
             }
         }
 
-        String json = SoundConfigSerializer.serialize(deduplicated);
+        String json = SoundConfigSerializer.serialize(this.gson, deduplicated);
         config.setSoundConfigsJson(json);
         configManager.setConfiguration("soundModifier", "soundConfigs", json);
+        this.plugin.setSoundConfigs(deduplicated);
     }
 }
