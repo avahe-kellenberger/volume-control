@@ -90,7 +90,9 @@ public class VolumeControl extends Plugin {
 
             // Volume control is dumb so we have to set it in preferences
             client.getPreferences().setSoundEffectVolume(configVolume);
-            client.playSoundEffect(soundId, configVolume);
+            // Play sound at max volume, capped by the overall preferences volume.
+            // 0 is a weird "special" case - it will play at max volume if setSoundEffectVolume(0) is called.
+            client.playSoundEffect(soundId, (configVolume == 0) ? 0 : 127);
             client.getPreferences().setSoundEffectVolume(originalVolume);
             break;
         }
