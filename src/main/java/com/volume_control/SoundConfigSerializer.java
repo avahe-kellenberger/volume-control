@@ -9,8 +9,7 @@ import java.util.List;
 
 public class SoundConfigSerializer {
 
-    private static final Type SOUND_CONFIG_TYPE = new TypeToken<List<SoundConfig>>() {
-    }.getType();
+    private static final Type SOUND_CONFIG_TYPE = new TypeToken<List<SoundConfig>>() { }.getType();
 
     private SoundConfigSerializer() {
     }

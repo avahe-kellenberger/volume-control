@@ -9,4 +9,6 @@ public class SoundConfig {
     private int soundId;
     private String name;
     private int volume;
+    private Integer soundType;
 }
+

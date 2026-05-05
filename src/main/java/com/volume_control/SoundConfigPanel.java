@@ -1,12 +1,15 @@
 package com.volume_control;
 
 import com.google.gson.Gson;
-import net.runelite.api.Client;
 import net.runelite.client.config.ConfigManager;
 import net.runelite.client.ui.PluginPanel;
 
 import javax.swing.*;
+import javax.swing.event.DocumentEvent;
+import javax.swing.event.DocumentListener;
 import java.awt.*;
+import java.awt.event.FocusAdapter;
+import java.awt.event.FocusEvent;
 import java.util.*;
 import java.util.List;
 
@@ -19,15 +22,22 @@ public class SoundConfigPanel extends PluginPanel {
 
     private JTextField nameField;
     private JTextField soundIdField;
+    private ButtonGroup soundTypeGroup;
     private JSlider volumeSlider;
+    private JSpinner volumeSpinner;
     private JLabel volumeValueLabel;
     private JPanel soundList;
     private JButton submitButton;
     private SoundConfig editingConfig = null;
 
-    private final int defaultVolume = 10;
+    private final int defaultVolume = 63;
 
-    public SoundConfigPanel(Client client, VolumeControl plugin, VolumeControlConfig config, ConfigManager configManager, Gson gson) {
+    public SoundConfigPanel(
+        VolumeControl plugin,
+        VolumeControlConfig config,
+        ConfigManager configManager,
+        Gson gson
+    ) {
         this.plugin = plugin;
         this.config = config;
         this.configManager = configManager;
@@ -46,36 +56,103 @@ public class SoundConfigPanel extends PluginPanel {
         nameField = new JTextField();
         nameField.setMaximumSize(new Dimension(Integer.MAX_VALUE, 30));
         nameField.setAlignmentX(LEFT_ALIGNMENT);
-        add(new JLabel("Sound Name:"));
+        add(new JLabel("Sound Name: *"));
         add(nameField);
         add(Box.createVerticalStrut(8));
+
+        nameField.getDocument().addDocumentListener(new DocumentListener() {
+            public void insertUpdate(DocumentEvent e) { updateSubmitButtonState(); }
+            public void removeUpdate(DocumentEvent e) { updateSubmitButtonState(); }
+            public void changedUpdate(DocumentEvent e) { updateSubmitButtonState(); }
+        });
 
         soundIdField = new JTextField();
         soundIdField.setMaximumSize(new Dimension(Integer.MAX_VALUE, 30));
         soundIdField.setAlignmentX(LEFT_ALIGNMENT);
-        add(new JLabel("Sound ID:"));
+        add(new JLabel("Sound ID: *"));
         add(soundIdField);
         add(Box.createVerticalStrut(8));
 
+        soundIdField.getDocument().addDocumentListener(new DocumentListener() {
+            public void insertUpdate(DocumentEvent e) { updateSubmitButtonState(); }
+            public void removeUpdate(DocumentEvent e) { updateSubmitButtonState(); }
+            public void changedUpdate(DocumentEvent e) { updateSubmitButtonState(); }
+        });
+
+        soundTypeGroup = new ButtonGroup();
+        JPanel typePanel = new JPanel();
+        typePanel.setLayout(new BoxLayout(typePanel, BoxLayout.X_AXIS));
+        typePanel.setAlignmentX(LEFT_ALIGNMENT);
+        typePanel.setMaximumSize(new Dimension(Integer.MAX_VALUE, 25));
+
+        JRadioButton effectButton = new JRadioButton("Sound", true);
+        effectButton.setActionCommand(String.valueOf(SoundTypes.EFFECT));
+        JRadioButton areaButton = new JRadioButton("Area");
+        areaButton.setActionCommand(String.valueOf(SoundTypes.AREA));
+
+        soundTypeGroup.add(effectButton);
+        soundTypeGroup.add(areaButton);
+
+        typePanel.add(new JLabel("Type:"));
+        typePanel.add(Box.createHorizontalStrut(10));
+        typePanel.add(effectButton);
+        typePanel.add(Box.createHorizontalStrut(15));
+        typePanel.add(areaButton);
+        typePanel.add(Box.createHorizontalGlue());
+        add(typePanel);
+        add(Box.createVerticalStrut(8));
+
         volumeSlider = new JSlider(0, 127, defaultVolume);
+        volumeSpinner = new JSpinner(new SpinnerNumberModel(defaultVolume, 0, 127, 1));
         volumeValueLabel = new JLabel(String.valueOf(defaultVolume));
-        volumeSlider.addChangeListener(e -> volumeValueLabel.setText(String.valueOf(volumeSlider.getValue())));
+
+        volumeSpinner.setPreferredSize(new Dimension(60, 25));
+        volumeSpinner.setMaximumSize(new Dimension(60, 25));
+
+        JFormattedTextField spinnerTextField = ((JSpinner.NumberEditor) volumeSpinner.getEditor()).getTextField();
+        spinnerTextField.addFocusListener(new FocusAdapter() {
+            @Override
+            public void focusLost(FocusEvent e) {
+                try {
+                    int value = Integer.parseInt(spinnerTextField.getText());
+                    value = Math.max(0, Math.min(127, value));
+                    volumeSpinner.setValue(value);
+                    volumeSlider.setValue(value);
+                } catch (NumberFormatException ignored) {
+                    volumeSpinner.setValue(defaultVolume);
+                    volumeSlider.setValue(defaultVolume);
+                }
+            }
+        });
+
+        volumeSlider.addChangeListener(e -> {
+            int value = volumeSlider.getValue();
+            volumeValueLabel.setText(String.valueOf(value));
+            volumeSpinner.setValue(value);
+        });
+
+        volumeSpinner.addChangeListener(e -> {
+            int value = ((Number) volumeSpinner.getValue()).intValue();
+            volumeSlider.setValue(value);
+        });
 
         JPanel volumePanel = new JPanel();
         volumePanel.setLayout(new BoxLayout(volumePanel, BoxLayout.X_AXIS));
         volumePanel.setAlignmentX(LEFT_ALIGNMENT);
-        volumePanel.setMaximumSize(new Dimension(Integer.MAX_VALUE, 40));
+        volumePanel.setMaximumSize(new Dimension(Integer.MAX_VALUE, 35));
         volumePanel.add(new JLabel("Volume:"));
         volumePanel.add(Box.createHorizontalStrut(10));
         volumePanel.add(volumeSlider);
-        volumePanel.add(Box.createHorizontalStrut(10));
-        volumePanel.add(volumeValueLabel);
+        volumePanel.add(Box.createHorizontalStrut(8));
+        volumePanel.add(volumeSpinner);
+        volumePanel.add(Box.createHorizontalGlue());
         add(volumePanel);
         add(Box.createVerticalStrut(10));
 
         submitButton = new JButton("Submit");
         submitButton.setAlignmentX(LEFT_ALIGNMENT);
         submitButton.setMaximumSize(new Dimension(100, 35));
+        submitButton.setEnabled(false);
         submitButton.addActionListener(e -> saveSoundConfig());
         add(submitButton);
         add(Box.createVerticalStrut(15));
@@ -90,10 +167,10 @@ public class SoundConfigPanel extends PluginPanel {
         soundList.setAlignmentX(LEFT_ALIGNMENT);
 
         JScrollPane scrollPane = new JScrollPane(soundList);
-        scrollPane.setPreferredSize(new Dimension(Integer.MAX_VALUE, 200));
         scrollPane.setAlignmentX(LEFT_ALIGNMENT);
-        scrollPane.setMaximumSize(new Dimension(Integer.MAX_VALUE, 200));
-        add(scrollPane);
+        scrollPane.setPreferredSize(new Dimension(Integer.MAX_VALUE, 632));
+        scrollPane.setMaximumSize(new Dimension(Integer.MAX_VALUE, 632));
+        add(scrollPane, "grow");
 
         updateSoundList();
 
@@ -146,15 +223,20 @@ public class SoundConfigPanel extends PluginPanel {
 
             int soundId = Integer.parseInt(soundIdText);
             int volume = volumeSlider.getValue();
+            int soundType = Integer.parseInt(soundTypeGroup.getSelection().getActionCommand());
 
-            SoundConfig newConfig = new SoundConfig(soundId, name, volume);
+            SoundConfig newConfig = new SoundConfig(soundId, name, volume, soundType);
 
             List<SoundConfig> existing = getSoundConfigs();
             List<SoundConfig> configs = new ArrayList<>((existing != null) ? existing : Collections.emptyList());
 
             if (editingConfig != null) {
-                // Replace the old entry with the same ID when editing
-                configs.removeIf(c -> c.getSoundId() == editingConfig.getSoundId());
+                // Replace the old entry with the same ID and soundType when editing
+                int editingSoundType = editingConfig.getSoundType() != null ? editingConfig.getSoundType() : SoundTypes.EFFECT;
+                configs.removeIf(
+                    c -> c.getSoundId() == editingConfig.getSoundId() &&
+                    (c.getSoundType() != null ? c.getSoundType() : SoundTypes.EFFECT) == editingSoundType
+                );
                 editingConfig = null;
             }
 
@@ -164,6 +246,9 @@ public class SoundConfigPanel extends PluginPanel {
             soundIdField.setText("");
             nameField.setText("");
             volumeSlider.setValue(defaultVolume);
+            volumeSpinner.setValue(defaultVolume);
+            soundTypeGroup.clearSelection();
+            soundTypeGroup.getElements().nextElement().setSelected(true);
 
             updateSoundList();
         } catch (NumberFormatException ignored) {
@@ -222,9 +307,15 @@ public class SoundConfigPanel extends PluginPanel {
                 volLabel.setForeground(Color.LIGHT_GRAY);
                 volLabel.setFont(new Font(Font.MONOSPACED, Font.PLAIN, 10));
 
+                JLabel typeLabel = new JLabel("Type: " + SoundTypes.getName(soundConfig.getSoundType()));
+                typeLabel.setForeground(Color.LIGHT_GRAY);
+                typeLabel.setFont(new Font(Font.MONOSPACED, Font.PLAIN, 10));
+
                 detailsPanel.add(idLabel);
                 detailsPanel.add(Box.createHorizontalStrut(10));
                 detailsPanel.add(volLabel);
+                detailsPanel.add(Box.createHorizontalStrut(10));
+                detailsPanel.add(typeLabel);
                 itemPanel.add(detailsPanel);
 
                 JPanel buttonPanel = new JPanel();
@@ -255,12 +346,28 @@ public class SoundConfigPanel extends PluginPanel {
 
         soundList.revalidate();
         soundList.repaint();
+        // Force parent scroll pane to update its layout
+        SwingUtilities.invokeLater(() -> {
+            Container parent = soundList.getParent();
+            if (parent != null) {
+                parent.revalidate();
+                parent.repaint();
+            }
+        });
+    }
+
+    private void updateSubmitButtonState() {
+        boolean hasValidSoundName = !nameField.getText().trim().isEmpty();
+        boolean hasValidSoundId = !soundIdField.getText().trim().isEmpty();
+        submitButton.setEnabled(hasValidSoundName && hasValidSoundId);
     }
 
     private void deleteSoundConfig(SoundConfig soundConfig) {
         List<SoundConfig> existing = getSoundConfigs();
         List<SoundConfig> configs = new ArrayList<>((existing != null) ? existing : Collections.emptyList());
-        configs.removeIf(c -> c.getSoundId() == soundConfig.getSoundId());
+        configs.removeIf(c -> c.getSoundId() == soundConfig.getSoundId() &&
+                ((c.getSoundType() != null ? c.getSoundType() : SoundTypes.EFFECT) ==
+                        (soundConfig.getSoundType() != null ? soundConfig.getSoundType() : SoundTypes.EFFECT)));
         setSoundConfigs(configs);
         updateSoundList();
     }
@@ -270,7 +377,15 @@ public class SoundConfigPanel extends PluginPanel {
         nameField.setText(soundConfig.getName());
         soundIdField.setText(String.valueOf(soundConfig.getSoundId()));
         volumeSlider.setValue(soundConfig.getVolume());
-        volumeValueLabel.setText(String.valueOf(soundConfig.getVolume()));
+        volumeSpinner.setValue(soundConfig.getVolume());
+
+        int soundType = soundConfig.getSoundType() != null ? soundConfig.getSoundType() : SoundTypes.EFFECT;
+        for (AbstractButton button : Collections.list(soundTypeGroup.getElements())) {
+            if (button.getActionCommand().equals(String.valueOf(soundType))) {
+                button.setSelected(true);
+                break;
+            }
+        }
     }
 
     private List<SoundConfig> getSoundConfigs() {
@@ -278,13 +393,15 @@ public class SoundConfigPanel extends PluginPanel {
     }
 
     private void setSoundConfigs(List<SoundConfig> soundConfigs) {
-        // Dedupe by sound ID
-        Set<Integer> seenIds = new HashSet<>();
+        // Dedupe by sound ID and soundType combination
+        Set<String> seenKeys = new HashSet<>();
         List<SoundConfig> deduplicated = new ArrayList<>();
 
         if (soundConfigs != null) {
             for (SoundConfig cfg : soundConfigs) {
-                if (seenIds.add(cfg.getSoundId())) {
+                int soundType = cfg.getSoundType() != null ? cfg.getSoundType() : SoundTypes.EFFECT;
+                String key = cfg.getSoundId() + ":" + soundType;
+                if (seenKeys.add(key)) {
                     deduplicated.add(cfg);
                 }
             }

@@ -5,6 +5,7 @@ import com.google.inject.Provides;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import net.runelite.api.Client;
+import net.runelite.api.events.AreaSoundEffectPlayed;
 import net.runelite.api.events.SoundEffectPlayed;
 import net.runelite.client.config.ConfigManager;
 import net.runelite.client.eventbus.Subscribe;
@@ -54,7 +55,7 @@ public class VolumeControl extends Plugin {
 
     @Override
     protected void startUp() throws Exception {
-        final SoundConfigPanel panel = new SoundConfigPanel(client, this, config, configManager, gson);
+        final SoundConfigPanel panel = new SoundConfigPanel(this, config, configManager, gson);
         final BufferedImage icon = ImageUtil.loadImageResource(getClass(), "/ico.png");
         navButton = NavigationButton.builder()
                 .tooltip("Volume Control")
@@ -73,20 +74,27 @@ public class VolumeControl extends Plugin {
     }
 
     @Subscribe
-    public void onSoundEffectPlayed(SoundEffectPlayed soundEffectPlayed) {
+    public void onSoundEffectPlayed(SoundEffectPlayed event) {
         if (soundConfigs == null || soundConfigs.isEmpty()) {
             return;
         }
 
-        final int soundId = soundEffectPlayed.getSoundId();
+        final int soundId = event.getSoundId();
         for (SoundConfig soundConfig : soundConfigs) {
             if (soundConfig.getSoundId() != soundId) {
                 continue;
             }
-            soundEffectPlayed.consume();
 
-            int configVolume = soundConfig.getVolume();
+            // Only handle EFFECT type (or null which defaults to EFFECT)
+            int soundType = soundConfig.getSoundType() != null ? soundConfig.getSoundType() : SoundTypes.EFFECT;
+            if (soundType != SoundTypes.EFFECT) {
+                continue;
+            }
+
+            event.consume();
+
             int originalVolume = client.getPreferences().getSoundEffectVolume();
+            int configVolume = soundConfig.getVolume();
 
             // Volume control is dumb so we have to set it in preferences
             client.getPreferences().setSoundEffectVolume(configVolume);
@@ -94,6 +102,33 @@ public class VolumeControl extends Plugin {
             // 0 is a weird "special" case - it will play at max volume if setSoundEffectVolume(0) is called.
             client.playSoundEffect(soundId, (configVolume == 0) ? 0 : 127);
             client.getPreferences().setSoundEffectVolume(originalVolume);
+            break;
+        }
+    }
+
+    @Subscribe
+    public void onAreaSoundEffectPlayed(AreaSoundEffectPlayed event) {
+        if (soundConfigs == null || soundConfigs.isEmpty()) {
+            return;
+        }
+
+        final int soundId = event.getSoundId();
+        for (SoundConfig soundConfig : soundConfigs) {
+            if (soundConfig.getSoundId() != soundId || soundConfig.getSoundType() != SoundTypes.AREA) {
+                continue;
+            }
+
+            event.consume();
+
+            int originalVolume = client.getPreferences().getAreaSoundEffectVolume();
+            int configVolume = soundConfig.getVolume();
+
+            // TODO: Test this thoroughly, not sure if this is correct.
+            // I need a good example sound effect that is easily replicable.
+            int volume = (configVolume == 0) ? 0 : 127;
+            client.getPreferences().setAreaSoundEffectVolume(volume);
+            client.playSoundEffect(soundId, event.getSceneX(), event.getSceneY(), event.getRange(), event.getDelay());
+            client.getPreferences().setAreaSoundEffectVolume(originalVolume);
             break;
         }
     }
