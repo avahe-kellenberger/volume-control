@@ -5,6 +5,7 @@ import com.google.inject.Provides;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import net.runelite.api.Client;
+import net.runelite.api.coords.LocalPoint;
 import net.runelite.api.events.AreaSoundEffectPlayed;
 import net.runelite.api.events.SoundEffectPlayed;
 import net.runelite.client.config.ConfigManager;
@@ -120,17 +121,33 @@ public class VolumeControl extends Plugin {
 
             event.consume();
 
-            int originalVolume = client.getPreferences().getAreaSoundEffectVolume();
+            int originalVolume = client.getPreferences().getSoundEffectVolume();
             int configVolume = soundConfig.getVolume();
 
-            // TODO: Test this thoroughly, not sure if this is correct.
-            // I need a good example sound effect that is easily replicable.
-            int volume = (configVolume == 0) ? 0 : 127;
-            client.getPreferences().setAreaSoundEffectVolume(volume);
-            client.playSoundEffect(soundId, event.getSceneX(), event.getSceneY(), event.getRange(), event.getDelay());
-            client.getPreferences().setAreaSoundEffectVolume(originalVolume);
+            // Calc distance from sound source
+            LocalPoint playerLocation = client.getLocalPlayer().getLocalLocation();
+            double dist = distance(
+                    playerLocation.getSceneX(),
+                    playerLocation.getSceneY(),
+                    event.getSceneX(),
+                    event.getSceneY()
+            );
+            double volumeScale = 1.0 - (Math.min(1.0, dist / event.getRange()));
+            int scaledVolume = (int) Math.floor(volumeScale * (double) configVolume);
+
+            client.getPreferences().setSoundEffectVolume(scaledVolume);
+            client.playSoundEffect(soundId, (configVolume == 0 || scaledVolume == 0) ? 0 : 127);
+            client.getPreferences().setSoundEffectVolume(originalVolume);
             break;
         }
     }
+
+    private static double distance(int x1, int y1, int x2, int y2) {
+        long dx = (long) x2 - x1;
+        long dy = (long) y2 - y1;
+        return Math.sqrt((double) dx * dx + (double) dy * dy);
+    }
+
+
 }
 
