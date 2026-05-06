@@ -10,5 +10,6 @@ public class SoundConfig {
     private String name;
     private int volume;
     private Integer soundType;
+    private Boolean positional; // If area sounds should be played positionally
 }
 

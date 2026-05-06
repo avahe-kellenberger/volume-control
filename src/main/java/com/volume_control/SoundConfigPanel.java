@@ -21,8 +21,9 @@ public class SoundConfigPanel extends PluginPanel {
     private final Gson gson;
 
     private JTextField nameField;
-    private JTextField soundIdField;
+    private JSpinner soundIdSpinner;
     private ButtonGroup soundTypeGroup;
+    private JCheckBox positionalCheckbox;
     private JSlider volumeSlider;
     private JSpinner volumeSpinner;
     private JLabel volumeValueLabel;
@@ -33,10 +34,10 @@ public class SoundConfigPanel extends PluginPanel {
     private final int defaultVolume = 63;
 
     public SoundConfigPanel(
-        VolumeControl plugin,
-        VolumeControlConfig config,
-        ConfigManager configManager,
-        Gson gson
+            VolumeControl plugin,
+            VolumeControlConfig config,
+            ConfigManager configManager,
+            Gson gson
     ) {
         this.plugin = plugin;
         this.config = config;
@@ -61,23 +62,36 @@ public class SoundConfigPanel extends PluginPanel {
         add(Box.createVerticalStrut(8));
 
         nameField.getDocument().addDocumentListener(new DocumentListener() {
-            public void insertUpdate(DocumentEvent e) { updateSubmitButtonState(); }
-            public void removeUpdate(DocumentEvent e) { updateSubmitButtonState(); }
-            public void changedUpdate(DocumentEvent e) { updateSubmitButtonState(); }
+            public void insertUpdate(DocumentEvent e) {
+                updateSubmitButtonState();
+            }
+
+            public void removeUpdate(DocumentEvent e) {
+                updateSubmitButtonState();
+            }
+
+            public void changedUpdate(DocumentEvent e) {
+                updateSubmitButtonState();
+            }
         });
 
-        soundIdField = new JTextField();
-        soundIdField.setMaximumSize(new Dimension(Integer.MAX_VALUE, 30));
-        soundIdField.setAlignmentX(LEFT_ALIGNMENT);
+        soundIdSpinner = new JSpinner(new SpinnerNumberModel(0, 0, Integer.MAX_VALUE, 1));
+        soundIdSpinner.setMaximumSize(new Dimension(Integer.MAX_VALUE, 30));
+        soundIdSpinner.setAlignmentX(LEFT_ALIGNMENT);
         add(new JLabel("Sound ID: *"));
-        add(soundIdField);
+        add(soundIdSpinner);
         add(Box.createVerticalStrut(8));
 
-        soundIdField.getDocument().addDocumentListener(new DocumentListener() {
-            public void insertUpdate(DocumentEvent e) { updateSubmitButtonState(); }
-            public void removeUpdate(DocumentEvent e) { updateSubmitButtonState(); }
-            public void changedUpdate(DocumentEvent e) { updateSubmitButtonState(); }
+        JFormattedTextField soundIdTextField = ((JSpinner.NumberEditor) soundIdSpinner.getEditor()).getTextField();
+        soundIdTextField.setHorizontalAlignment(JTextField.LEFT);
+        soundIdTextField.addFocusListener(new FocusAdapter() {
+            @Override
+            public void focusGained(FocusEvent e) {
+                SwingUtilities.invokeLater(soundIdTextField::selectAll);
+            }
         });
+
+        soundIdSpinner.addChangeListener(e -> updateSubmitButtonState());
 
         soundTypeGroup = new ButtonGroup();
         JPanel typePanel = new JPanel();
@@ -102,6 +116,23 @@ public class SoundConfigPanel extends PluginPanel {
         add(typePanel);
         add(Box.createVerticalStrut(8));
 
+        positionalCheckbox = new JCheckBox("Positional audio");
+        positionalCheckbox.setAlignmentX(LEFT_ALIGNMENT);
+        positionalCheckbox.setEnabled(false);
+        positionalCheckbox.setSelected(false);
+        add(positionalCheckbox);
+        add(Box.createVerticalStrut(8));
+
+        effectButton.addActionListener(e -> {
+            positionalCheckbox.setEnabled(false);
+            positionalCheckbox.setSelected(false);
+        });
+
+        areaButton.addActionListener(e -> {
+            positionalCheckbox.setEnabled(true);
+            positionalCheckbox.setSelected(true);
+        });
+
         volumeSlider = new JSlider(0, 127, defaultVolume);
         volumeSpinner = new JSpinner(new SpinnerNumberModel(defaultVolume, 0, 127, 1));
         volumeValueLabel = new JLabel(String.valueOf(defaultVolume));
@@ -109,12 +140,18 @@ public class SoundConfigPanel extends PluginPanel {
         volumeSpinner.setPreferredSize(new Dimension(60, 25));
         volumeSpinner.setMaximumSize(new Dimension(60, 25));
 
-        JFormattedTextField spinnerTextField = ((JSpinner.NumberEditor) volumeSpinner.getEditor()).getTextField();
-        spinnerTextField.addFocusListener(new FocusAdapter() {
+        JFormattedTextField volumeTextField = ((JSpinner.NumberEditor) volumeSpinner.getEditor()).getTextField();
+        volumeTextField.setHorizontalAlignment(JTextField.LEFT);
+        volumeTextField.addFocusListener(new FocusAdapter() {
+            @Override
+            public void focusGained(FocusEvent e) {
+                volumeTextField.selectAll();
+            }
+
             @Override
             public void focusLost(FocusEvent e) {
                 try {
-                    int value = Integer.parseInt(spinnerTextField.getText());
+                    int value = Integer.parseInt(volumeTextField.getText());
                     value = Math.max(0, Math.min(127, value));
                     volumeSpinner.setValue(value);
                     volumeSlider.setValue(value);
@@ -177,16 +214,16 @@ public class SoundConfigPanel extends PluginPanel {
         setFocusTraversalPolicy(new FocusTraversalPolicy() {
             @Override
             public Component getComponentAfter(Container container, Component component) {
-                if (component == nameField) return soundIdField;
-                if (component == soundIdField) return submitButton;
+                if (component == nameField) return soundIdSpinner;
+                if (component == soundIdSpinner) return submitButton;
                 return nameField;
             }
 
             @Override
             public Component getComponentBefore(Container container, Component component) {
                 if (component == nameField) return submitButton;
-                if (component == soundIdField) return nameField;
-                if (component == submitButton) return soundIdField;
+                if (component == soundIdSpinner) return nameField;
+                if (component == submitButton) return soundIdSpinner;
                 return submitButton;
             }
 
@@ -214,18 +251,22 @@ public class SoundConfigPanel extends PluginPanel {
         }
 
         try {
-            String soundIdText = soundIdField.getText().trim();
             String name = nameField.getText().trim();
+            int soundId = ((Number) soundIdSpinner.getValue()).intValue();
 
-            if (soundIdText.isEmpty() || name.isEmpty()) {
+            if (soundId <= 0 || name.isEmpty()) {
                 return;
             }
 
-            int soundId = Integer.parseInt(soundIdText);
-            int volume = volumeSlider.getValue();
             int soundType = Integer.parseInt(soundTypeGroup.getSelection().getActionCommand());
-
-            SoundConfig newConfig = new SoundConfig(soundId, name, volume, soundType);
+            SoundConfig newConfig = new SoundConfig(
+                    soundId,
+                    name,
+                    volumeSlider.getValue(),
+                    soundType,
+                    // Only save positional for area sounds, null for effect sounds
+                    (soundType == SoundTypes.AREA) ? positionalCheckbox.isSelected() : null
+            );
 
             List<SoundConfig> existing = getSoundConfigs();
             List<SoundConfig> configs = new ArrayList<>((existing != null) ? existing : Collections.emptyList());
@@ -234,8 +275,8 @@ public class SoundConfigPanel extends PluginPanel {
                 // Replace the old entry with the same ID and soundType when editing
                 int editingSoundType = editingConfig.getSoundType() != null ? editingConfig.getSoundType() : SoundTypes.EFFECT;
                 configs.removeIf(
-                    c -> c.getSoundId() == editingConfig.getSoundId() &&
-                    (c.getSoundType() != null ? c.getSoundType() : SoundTypes.EFFECT) == editingSoundType
+                        c -> c.getSoundId() == editingConfig.getSoundId() &&
+                                (c.getSoundType() != null ? c.getSoundType() : SoundTypes.EFFECT) == editingSoundType
                 );
                 editingConfig = null;
             }
@@ -243,10 +284,12 @@ public class SoundConfigPanel extends PluginPanel {
             configs.add(newConfig);
             setSoundConfigs(configs);
 
-            soundIdField.setText("");
+            soundIdSpinner.setValue(0);
             nameField.setText("");
             volumeSlider.setValue(defaultVolume);
             volumeSpinner.setValue(defaultVolume);
+            positionalCheckbox.setSelected(false);
+            positionalCheckbox.setEnabled(false);
             soundTypeGroup.clearSelection();
             soundTypeGroup.getElements().nextElement().setSelected(true);
 
@@ -358,7 +401,7 @@ public class SoundConfigPanel extends PluginPanel {
 
     private void updateSubmitButtonState() {
         boolean hasValidSoundName = !nameField.getText().trim().isEmpty();
-        boolean hasValidSoundId = !soundIdField.getText().trim().isEmpty();
+        boolean hasValidSoundId = ((Number) soundIdSpinner.getValue()).intValue() > 0;
         submitButton.setEnabled(hasValidSoundName && hasValidSoundId);
     }
 
@@ -375,7 +418,7 @@ public class SoundConfigPanel extends PluginPanel {
     private void editSoundConfig(SoundConfig soundConfig) {
         editingConfig = soundConfig;
         nameField.setText(soundConfig.getName());
-        soundIdField.setText(String.valueOf(soundConfig.getSoundId()));
+        soundIdSpinner.setValue(soundConfig.getSoundId());
         volumeSlider.setValue(soundConfig.getVolume());
         volumeSpinner.setValue(soundConfig.getVolume());
 
@@ -385,6 +428,15 @@ public class SoundConfigPanel extends PluginPanel {
                 button.setSelected(true);
                 break;
             }
+        }
+
+        // Set positional checkbox state based on sound type
+        if (soundType == SoundTypes.AREA) {
+            positionalCheckbox.setEnabled(true);
+            positionalCheckbox.setSelected(soundConfig.getPositional() != null ? soundConfig.getPositional() : true);
+        } else {
+            positionalCheckbox.setEnabled(false);
+            positionalCheckbox.setSelected(false);
         }
     }
 

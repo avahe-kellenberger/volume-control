@@ -122,24 +122,30 @@ public class VolumeControl extends Plugin {
             event.consume();
 
             int originalVolume = client.getPreferences().getSoundEffectVolume();
-            int configVolume = soundConfig.getVolume();
-
-            // Calc distance from sound source
-            LocalPoint playerLocation = client.getLocalPlayer().getLocalLocation();
-            double dist = distance(
-                    playerLocation.getSceneX(),
-                    playerLocation.getSceneY(),
-                    event.getSceneX(),
-                    event.getSceneY()
-            );
-            double volumeScale = 1.0 - (Math.min(1.0, dist / event.getRange()));
-            int scaledVolume = (int) Math.floor(volumeScale * (double) configVolume);
+            int scaledVolume = getScaledVolume(event, soundConfig, soundConfig.getVolume());
 
             client.getPreferences().setSoundEffectVolume(scaledVolume);
-            client.playSoundEffect(soundId, (configVolume == 0 || scaledVolume == 0) ? 0 : 127);
+            client.playSoundEffect(soundId, (scaledVolume == 0) ? 0 : 127);
             client.getPreferences().setSoundEffectVolume(originalVolume);
             break;
         }
+    }
+
+    private int getScaledVolume(AreaSoundEffectPlayed event, SoundConfig soundConfig, int configVolume) {
+        if (!soundConfig.getPositional()) {
+            return configVolume;
+        }
+
+        // Calc distance from sound source
+        LocalPoint playerLocation = client.getLocalPlayer().getLocalLocation();
+        double dist = distance(
+                playerLocation.getSceneX(),
+                playerLocation.getSceneY(),
+                event.getSceneX(),
+                event.getSceneY()
+        );
+        double volumeScale = 1.0 - (Math.min(1.0, dist / event.getRange()));
+        return (int) Math.floor(volumeScale * (double) configVolume);
     }
 
     private static double distance(int x1, int y1, int x2, int y2) {
