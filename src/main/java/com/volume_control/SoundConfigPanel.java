@@ -1,6 +1,7 @@
 package com.volume_control;
 
 import com.google.gson.Gson;
+import net.runelite.api.SoundEffectID;
 import net.runelite.client.config.ConfigManager;
 import net.runelite.client.ui.PluginPanel;
 
@@ -21,7 +22,7 @@ public class SoundConfigPanel extends PluginPanel {
     private final Gson gson;
 
     private JTextField nameField;
-    private JSpinner soundIdSpinner;
+    private JTextField soundIdField;
     private ButtonGroup soundTypeGroup;
     private JCheckBox positionalCheckbox;
     private JSlider volumeSlider;
@@ -75,23 +76,26 @@ public class SoundConfigPanel extends PluginPanel {
             }
         });
 
-        soundIdSpinner = new JSpinner(new SpinnerNumberModel(0, 0, Integer.MAX_VALUE, 1));
-        soundIdSpinner.setMaximumSize(new Dimension(Integer.MAX_VALUE, 30));
-        soundIdSpinner.setAlignmentX(LEFT_ALIGNMENT);
+        soundIdField = new JTextField();
+        soundIdField.setMaximumSize(new Dimension(Integer.MAX_VALUE, 30));
+        soundIdField.setAlignmentX(LEFT_ALIGNMENT);
         add(new JLabel("Sound ID: *"));
-        add(soundIdSpinner);
+        add(soundIdField);
         add(Box.createVerticalStrut(8));
 
-        JFormattedTextField soundIdTextField = ((JSpinner.NumberEditor) soundIdSpinner.getEditor()).getTextField();
-        soundIdTextField.setHorizontalAlignment(JTextField.LEFT);
-        soundIdTextField.addFocusListener(new FocusAdapter() {
-            @Override
-            public void focusGained(FocusEvent e) {
-                SwingUtilities.invokeLater(soundIdTextField::selectAll);
+        soundIdField.getDocument().addDocumentListener(new DocumentListener() {
+            public void insertUpdate(DocumentEvent e) {
+                updateSubmitButtonState();
+            }
+
+            public void removeUpdate(DocumentEvent e) {
+                updateSubmitButtonState();
+            }
+
+            public void changedUpdate(DocumentEvent e) {
+                updateSubmitButtonState();
             }
         });
-
-        soundIdSpinner.addChangeListener(e -> updateSubmitButtonState());
 
         soundTypeGroup = new ButtonGroup();
         JPanel typePanel = new JPanel();
@@ -140,18 +144,12 @@ public class SoundConfigPanel extends PluginPanel {
         volumeSpinner.setPreferredSize(new Dimension(60, 25));
         volumeSpinner.setMaximumSize(new Dimension(60, 25));
 
-        JFormattedTextField volumeTextField = ((JSpinner.NumberEditor) volumeSpinner.getEditor()).getTextField();
-        volumeTextField.setHorizontalAlignment(JTextField.LEFT);
-        volumeTextField.addFocusListener(new FocusAdapter() {
-            @Override
-            public void focusGained(FocusEvent e) {
-                volumeTextField.selectAll();
-            }
-
+        JFormattedTextField spinnerTextField = ((JSpinner.NumberEditor) volumeSpinner.getEditor()).getTextField();
+        spinnerTextField.addFocusListener(new FocusAdapter() {
             @Override
             public void focusLost(FocusEvent e) {
                 try {
-                    int value = Integer.parseInt(volumeTextField.getText());
+                    int value = Integer.parseInt(spinnerTextField.getText());
                     value = Math.max(0, Math.min(127, value));
                     volumeSpinner.setValue(value);
                     volumeSlider.setValue(value);
@@ -205,8 +203,8 @@ public class SoundConfigPanel extends PluginPanel {
 
         JScrollPane scrollPane = new JScrollPane(soundList);
         scrollPane.setAlignmentX(LEFT_ALIGNMENT);
-        scrollPane.setPreferredSize(new Dimension(Integer.MAX_VALUE, 632));
-        scrollPane.setMaximumSize(new Dimension(Integer.MAX_VALUE, 632));
+        scrollPane.setPreferredSize(new Dimension(Integer.MAX_VALUE, 627));
+        scrollPane.setMaximumSize(new Dimension(Integer.MAX_VALUE, 627));
         add(scrollPane, "grow");
 
         updateSoundList();
@@ -214,16 +212,16 @@ public class SoundConfigPanel extends PluginPanel {
         setFocusTraversalPolicy(new FocusTraversalPolicy() {
             @Override
             public Component getComponentAfter(Container container, Component component) {
-                if (component == nameField) return soundIdSpinner;
-                if (component == soundIdSpinner) return submitButton;
+                if (component == nameField) return soundIdField;
+                if (component == soundIdField) return submitButton;
                 return nameField;
             }
 
             @Override
             public Component getComponentBefore(Container container, Component component) {
                 if (component == nameField) return submitButton;
-                if (component == soundIdSpinner) return nameField;
-                if (component == submitButton) return soundIdSpinner;
+                if (component == soundIdField) return nameField;
+                if (component == submitButton) return soundIdField;
                 return submitButton;
             }
 
@@ -251,16 +249,16 @@ public class SoundConfigPanel extends PluginPanel {
         }
 
         try {
+            String soundIdText = soundIdField.getText().trim();
             String name = nameField.getText().trim();
-            int soundId = ((Number) soundIdSpinner.getValue()).intValue();
 
-            if (soundId <= 0 || name.isEmpty()) {
+            if (soundIdText.isEmpty() || name.isEmpty()) {
                 return;
             }
 
             int soundType = Integer.parseInt(soundTypeGroup.getSelection().getActionCommand());
             SoundConfig newConfig = new SoundConfig(
-                    soundId,
+                    Integer.parseInt(soundIdText),
                     name,
                     volumeSlider.getValue(),
                     soundType,
@@ -284,7 +282,7 @@ public class SoundConfigPanel extends PluginPanel {
             configs.add(newConfig);
             setSoundConfigs(configs);
 
-            soundIdSpinner.setValue(0);
+            soundIdField.setText("");
             nameField.setText("");
             volumeSlider.setValue(defaultVolume);
             volumeSpinner.setValue(defaultVolume);
@@ -401,7 +399,7 @@ public class SoundConfigPanel extends PluginPanel {
 
     private void updateSubmitButtonState() {
         boolean hasValidSoundName = !nameField.getText().trim().isEmpty();
-        boolean hasValidSoundId = ((Number) soundIdSpinner.getValue()).intValue() > 0;
+        boolean hasValidSoundId = !soundIdField.getText().trim().isEmpty();
         submitButton.setEnabled(hasValidSoundName && hasValidSoundId);
     }
 
@@ -418,7 +416,7 @@ public class SoundConfigPanel extends PluginPanel {
     private void editSoundConfig(SoundConfig soundConfig) {
         editingConfig = soundConfig;
         nameField.setText(soundConfig.getName());
-        soundIdSpinner.setValue(soundConfig.getSoundId());
+        soundIdField.setText(String.valueOf(soundConfig.getSoundId()));
         volumeSlider.setValue(soundConfig.getVolume());
         volumeSpinner.setValue(soundConfig.getVolume());
 
