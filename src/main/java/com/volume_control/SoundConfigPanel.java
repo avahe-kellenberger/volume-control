@@ -1,7 +1,6 @@
 package com.volume_control;
 
 import com.google.gson.Gson;
-import net.runelite.api.SoundEffectID;
 import net.runelite.client.config.ConfigManager;
 import net.runelite.client.ui.PluginPanel;
 
@@ -184,12 +183,25 @@ public class SoundConfigPanel extends PluginPanel {
         add(volumePanel);
         add(Box.createVerticalStrut(10));
 
+        JPanel actionPanel = new JPanel();
+        actionPanel.setLayout(new BoxLayout(actionPanel, BoxLayout.X_AXIS));
+        actionPanel.setAlignmentX(LEFT_ALIGNMENT);
+        actionPanel.setMaximumSize(new Dimension(Integer.MAX_VALUE, 35));
+
         submitButton = new JButton("Submit");
-        submitButton.setAlignmentX(LEFT_ALIGNMENT);
         submitButton.setMaximumSize(new Dimension(100, 35));
         submitButton.setEnabled(false);
         submitButton.addActionListener(e -> saveSoundConfig());
-        add(submitButton);
+
+        JButton previewButton = new JButton("Play");
+        previewButton.setMaximumSize(new Dimension(80, 35));
+        previewButton.addActionListener(e -> previewCurrentSound());
+
+        actionPanel.add(submitButton);
+        actionPanel.add(Box.createHorizontalStrut(8));
+        actionPanel.add(previewButton);
+        actionPanel.add(Box.createHorizontalGlue());
+        add(actionPanel);
         add(Box.createVerticalStrut(15));
 
         JLabel savedLabel = new JLabel("Saved Sounds");
@@ -197,15 +209,16 @@ public class SoundConfigPanel extends PluginPanel {
         add(savedLabel);
         add(Box.createVerticalStrut(5));
 
-        soundList = new JPanel();
+        soundList = new JPanel() {
+            @Override
+            public Dimension getMaximumSize() {
+                return new Dimension(Integer.MAX_VALUE, getPreferredSize().height);
+            }
+        };
         soundList.setLayout(new BoxLayout(soundList, BoxLayout.Y_AXIS));
         soundList.setAlignmentX(LEFT_ALIGNMENT);
-
-        JScrollPane scrollPane = new JScrollPane(soundList);
-        scrollPane.setAlignmentX(LEFT_ALIGNMENT);
-        scrollPane.setPreferredSize(new Dimension(Integer.MAX_VALUE, 627));
-        scrollPane.setMaximumSize(new Dimension(Integer.MAX_VALUE, 627));
-        add(scrollPane, "grow");
+        add(soundList);
+        add(Box.createVerticalGlue());
 
         updateSoundList();
 
@@ -241,6 +254,17 @@ public class SoundConfigPanel extends PluginPanel {
             }
         });
         setFocusCycleRoot(true);
+    }
+
+    private void previewCurrentSound() {
+        String soundIdText = soundIdField.getText().trim();
+        if (soundIdText.isEmpty()) {
+            return;
+        }
+        try {
+            int soundId = Integer.parseInt(soundIdText);
+            plugin.playSound(soundId, volumeSlider.getValue());
+        } catch (NumberFormatException ignored) {}
     }
 
     private void saveSoundConfig() {
@@ -292,8 +316,7 @@ public class SoundConfigPanel extends PluginPanel {
             soundTypeGroup.getElements().nextElement().setSelected(true);
 
             updateSoundList();
-        } catch (NumberFormatException ignored) {
-        }
+        } catch (NumberFormatException ignored) {}
     }
 
     private void updateSoundList() {
@@ -365,19 +388,39 @@ public class SoundConfigPanel extends PluginPanel {
                 buttonPanel.setAlignmentX(LEFT_ALIGNMENT);
                 buttonPanel.setMaximumSize(new Dimension(220, 22));
 
+                Dimension playSize = new Dimension(48, 20);
+                JButton playButton = new JButton("Play");
+                playButton.setPreferredSize(playSize);
+                playButton.setMinimumSize(playSize);
+                playButton.setMaximumSize(playSize);
+                playButton.setMargin(new Insets(0, 0, 0, 0));
+                playButton.addActionListener(e -> plugin.playSound(
+                        soundConfig.getSoundId(),
+                        soundConfig.getVolume()
+                ));
+
+                Dimension editSize = new Dimension(48, 20);
                 JButton editButton = new JButton("Edit");
-                editButton.setPreferredSize(new Dimension(55, 20));
-                editButton.setMaximumSize(new Dimension(55, 20));
+                editButton.setPreferredSize(editSize);
+                editButton.setMinimumSize(editSize);
+                editButton.setMaximumSize(editSize);
+                editButton.setMargin(new Insets(0, 0, 0, 0));
                 editButton.addActionListener(e -> editSoundConfig(soundConfig));
 
+                Dimension deleteSize = new Dimension(62, 20);
                 JButton deleteButton = new JButton("Delete");
-                deleteButton.setPreferredSize(new Dimension(70, 20));
-                deleteButton.setMaximumSize(new Dimension(70, 20));
+                deleteButton.setPreferredSize(deleteSize);
+                deleteButton.setMinimumSize(deleteSize);
+                deleteButton.setMaximumSize(deleteSize);
+                deleteButton.setMargin(new Insets(0, 0, 0, 0));
                 deleteButton.addActionListener(e -> deleteSoundConfig(soundConfig));
 
+                buttonPanel.add(playButton);
+                buttonPanel.add(Box.createHorizontalStrut(4));
                 buttonPanel.add(editButton);
-                buttonPanel.add(Box.createHorizontalStrut(3));
+                buttonPanel.add(Box.createHorizontalStrut(4));
                 buttonPanel.add(deleteButton);
+                buttonPanel.add(Box.createHorizontalGlue());
                 itemPanel.add(buttonPanel);
 
                 soundList.add(itemPanel);

@@ -8,6 +8,7 @@ import net.runelite.api.Client;
 import net.runelite.api.coords.LocalPoint;
 import net.runelite.api.events.AreaSoundEffectPlayed;
 import net.runelite.api.events.SoundEffectPlayed;
+import net.runelite.client.callback.ClientThread;
 import net.runelite.client.config.ConfigManager;
 import net.runelite.client.eventbus.Subscribe;
 import net.runelite.client.plugins.Plugin;
@@ -34,6 +35,9 @@ public class VolumeControl extends Plugin {
 
     @Inject
     private ClientToolbar clientToolbar;
+
+    @Inject
+    private ClientThread clientThread;
 
     @Inject
     private ConfigManager configManager;
@@ -74,6 +78,18 @@ public class VolumeControl extends Plugin {
         clientToolbar.removeNavigation(navButton);
     }
 
+    public void playSound(int soundId, int volume) {
+        clientThread.invoke(() -> {
+            int originalVolume = client.getPreferences().getSoundEffectVolume();
+            // Volume control is dumb so we have to set it in preferences
+            client.getPreferences().setSoundEffectVolume(volume);
+            // Play sound at max volume, capped by the overall preferences volume.
+            // 0 is a weird "special" case - it will play at max volume if setSoundEffectVolume(0) is called.
+            client.playSoundEffect(soundId, (volume == 0) ? 0 : 127);
+            client.getPreferences().setSoundEffectVolume(originalVolume);
+        });
+    }
+
     @Subscribe
     public void onSoundEffectPlayed(SoundEffectPlayed event) {
         if (soundConfigs == null || soundConfigs.isEmpty()) {
@@ -94,15 +110,7 @@ public class VolumeControl extends Plugin {
 
             event.consume();
 
-            int originalVolume = client.getPreferences().getSoundEffectVolume();
-            int configVolume = soundConfig.getVolume();
-
-            // Volume control is dumb so we have to set it in preferences
-            client.getPreferences().setSoundEffectVolume(configVolume);
-            // Play sound at max volume, capped by the overall preferences volume.
-            // 0 is a weird "special" case - it will play at max volume if setSoundEffectVolume(0) is called.
-            client.playSoundEffect(soundId, (configVolume == 0) ? 0 : 127);
-            client.getPreferences().setSoundEffectVolume(originalVolume);
+            playSound(soundId, soundConfig.getVolume());
             break;
         }
     }
@@ -121,12 +129,8 @@ public class VolumeControl extends Plugin {
 
             event.consume();
 
-            int originalVolume = client.getPreferences().getSoundEffectVolume();
             int scaledVolume = getScaledVolume(event, soundConfig, soundConfig.getVolume());
-
-            client.getPreferences().setSoundEffectVolume(scaledVolume);
-            client.playSoundEffect(soundId, (scaledVolume == 0) ? 0 : 127);
-            client.getPreferences().setSoundEffectVolume(originalVolume);
+            playSound(soundId, scaledVolume);
             break;
         }
     }
@@ -156,4 +160,3 @@ public class VolumeControl extends Plugin {
 
 
 }
-
