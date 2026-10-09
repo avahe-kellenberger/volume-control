@@ -28,6 +28,7 @@ public class SoundConfigPanel extends PluginPanel {
     private JSpinner volumeSpinner;
     private JLabel volumeValueLabel;
     private JPanel soundList;
+    private JComboBox<SoundSortOrder> sortOrderComboBox;
     private JButton submitButton;
     private SoundConfig editingConfig = null;
 
@@ -204,10 +205,29 @@ public class SoundConfigPanel extends PluginPanel {
         add(actionPanel);
         add(Box.createVerticalStrut(15));
 
+        JSeparator separator = new JSeparator(SwingConstants.HORIZONTAL);
+        separator.setAlignmentX(LEFT_ALIGNMENT);
+        separator.setMaximumSize(new Dimension(Integer.MAX_VALUE, 2));
+        add(separator);
+        add(Box.createVerticalStrut(10));
+
         JLabel savedLabel = new JLabel("Saved Sounds");
         savedLabel.setAlignmentX(LEFT_ALIGNMENT);
         add(savedLabel);
         add(Box.createVerticalStrut(5));
+
+        JLabel sortLabel = new JLabel("Sort by:");
+        sortLabel.setAlignmentX(LEFT_ALIGNMENT);
+        add(sortLabel);
+
+        sortOrderComboBox = new JComboBox<>(SoundSortOrder.values());
+        sortOrderComboBox.setMaximumSize(new Dimension(Integer.MAX_VALUE, 30));
+        sortOrderComboBox.setAlignmentX(LEFT_ALIGNMENT);
+        SoundSortOrder savedSortOrder = config != null ? config.getSoundSortOrder() : null;
+        sortOrderComboBox.setSelectedItem(savedSortOrder != null ? savedSortOrder : SoundSortOrder.ADDED_OLDEST_FIRST);
+        sortLabel.setLabelFor(sortOrderComboBox);
+        add(sortOrderComboBox);
+        add(Box.createVerticalStrut(8));
 
         soundList = new JPanel() {
             @Override
@@ -220,6 +240,13 @@ public class SoundConfigPanel extends PluginPanel {
         add(soundList);
         add(Box.createVerticalGlue());
 
+        sortOrderComboBox.addActionListener(e -> {
+            if (config != null) {
+                config.setSoundSortOrder((SoundSortOrder) sortOrderComboBox.getSelectedItem());
+            }
+            updateSoundList();
+        });
+
         updateSoundList();
 
         setFocusTraversalPolicy(new FocusTraversalPolicy() {
@@ -227,14 +254,16 @@ public class SoundConfigPanel extends PluginPanel {
             public Component getComponentAfter(Container container, Component component) {
                 if (component == nameField) return soundIdField;
                 if (component == soundIdField) return submitButton;
+                if (component == submitButton) return sortOrderComboBox;
                 return nameField;
             }
 
             @Override
             public Component getComponentBefore(Container container, Component component) {
-                if (component == nameField) return submitButton;
+                if (component == nameField) return sortOrderComboBox;
                 if (component == soundIdField) return nameField;
                 if (component == submitButton) return soundIdField;
+                if (component == sortOrderComboBox) return submitButton;
                 return submitButton;
             }
 
@@ -245,7 +274,7 @@ public class SoundConfigPanel extends PluginPanel {
 
             @Override
             public Component getLastComponent(Container container) {
-                return submitButton;
+                return sortOrderComboBox;
             }
 
             @Override
@@ -294,16 +323,26 @@ public class SoundConfigPanel extends PluginPanel {
             List<SoundConfig> configs = new ArrayList<>((existing != null) ? existing : Collections.emptyList());
 
             if (editingConfig != null) {
-                // Replace the old entry with the same ID and soundType when editing
+                // Keep the entry's original position so editing preserves its added order.
                 int editingSoundType = editingConfig.getSoundType() != null ? editingConfig.getSoundType() : SoundTypes.EFFECT;
-                configs.removeIf(
-                        c -> c.getSoundId() == editingConfig.getSoundId() &&
-                                (c.getSoundType() != null ? c.getSoundType() : SoundTypes.EFFECT) == editingSoundType
-                );
+                boolean replaced = false;
+                for (int i = 0; i < configs.size(); i++) {
+                    SoundConfig existingConfig = configs.get(i);
+                    int existingSoundType = existingConfig.getSoundType() != null ? existingConfig.getSoundType() : SoundTypes.EFFECT;
+                    if (existingConfig.getSoundId() == editingConfig.getSoundId() && existingSoundType == editingSoundType) {
+                        configs.set(i, newConfig);
+                        replaced = true;
+                        break;
+                    }
+                }
+                if (!replaced) {
+                    configs.add(newConfig);
+                }
                 editingConfig = null;
+            } else {
+                configs.add(newConfig);
             }
 
-            configs.add(newConfig);
             setSoundConfigs(configs);
 
             soundIdField.setText("");
@@ -334,7 +373,8 @@ public class SoundConfigPanel extends PluginPanel {
             emptyLabel.setAlignmentX(LEFT_ALIGNMENT);
             soundList.add(emptyLabel);
         } else {
-            for (SoundConfig soundConfig : soundConfigs) {
+            SoundSortOrder sortOrder = (SoundSortOrder) sortOrderComboBox.getSelectedItem();
+            for (SoundConfig soundConfig : sortOrder.sort(soundConfigs)) {
                 JPanel itemPanel = new JPanel();
                 itemPanel.setLayout(new BoxLayout(itemPanel, BoxLayout.Y_AXIS));
                 itemPanel.setAlignmentX(LEFT_ALIGNMENT);

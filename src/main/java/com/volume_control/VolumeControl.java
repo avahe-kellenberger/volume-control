@@ -11,6 +11,7 @@ import net.runelite.api.events.SoundEffectPlayed;
 import net.runelite.client.callback.ClientThread;
 import net.runelite.client.config.ConfigManager;
 import net.runelite.client.eventbus.Subscribe;
+import net.runelite.client.events.ConfigChanged;
 import net.runelite.client.plugins.Plugin;
 import net.runelite.client.plugins.PluginDescriptor;
 import net.runelite.client.ui.ClientToolbar;
@@ -68,14 +69,34 @@ public class VolumeControl extends Plugin {
                 .priority(5)
                 .panel(panel)
                 .build();
-        clientToolbar.addNavigation(navButton);
         panel.startPanel();
         this.soundConfigs = SoundConfigSerializer.deserialize(this.gson, config.getSoundConfigsJson());
+        updateSidePanelButton();
     }
 
     @Override
     protected void shutDown() throws Exception {
         clientToolbar.removeNavigation(navButton);
+        navButton = null;
+    }
+
+    @Subscribe
+    public void onConfigChanged(ConfigChanged event) {
+        if ("soundModifier".equals(event.getGroup()) && "hideSidePanelButton".equals(event.getKey())) {
+            updateSidePanelButton();
+        }
+    }
+
+    private void updateSidePanelButton() {
+        if (navButton == null) {
+            return;
+        }
+
+        if (config.hideSidePanelButton()) {
+            clientToolbar.removeNavigation(navButton);
+        } else {
+            clientToolbar.addNavigation(navButton);
+        }
     }
 
     public void playSound(int soundId, int volume) {
